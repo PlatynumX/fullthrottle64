@@ -1,0 +1,72 @@
+name: Build FullThrottle64 - Real ScummVM R2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host tools
+        run: sudo apt-get update && sudo apt-get install -y git curl unzip python3
+
+      - name: Fetch real ScummVM and official Full Throttle demo
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/build_scummvm.sh
+
+      - name: Show exact upstream revision
+        run: |
+          cd work/scummvm
+          git rev-parse HEAD
+          git describe --tags --always
+          grep -n "ENABLE_SCUMM" config.mk
+
+      - name: Build with libdragon
+        run: |
+          docker run --rm \
+            -v "$PWD:/src" \
+            -w /src \
+            ghcr.io/dragonminded/libdragon:latest \
+            bash -lc './scripts/build_in_libdragon.sh' \
+            2>&1 | tee build.log
+
+      - name: Validate ROM
+        if: success()
+        run: |
+          test -s fullthrottle64-scummvm-r2.z64
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("fullthrottle64-scummvm-r2.z64")
+          b=p.read_bytes()
+          assert b[:4] == bytes.fromhex("80371240"), b[:4].hex()
+          assert len(b) > 1024*1024
+          print("ROM bytes:",len(b))
+          PY
+          sha256sum fullthrottle64-scummvm-r2.z64 > SHA256SUMS.txt
+
+      - name: Upload build result
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fullthrottle64-scummvm-r2
+          path: |
+            fullthrottle64-scummvm-r2.z64
+            SHA256SUMS.txt
+            build.log
+
+      - name: Upload failed build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fullthrottle64-scummvm-r2-failed-build
+          path: |
+            build.log
+            scripts/
+            overlay/

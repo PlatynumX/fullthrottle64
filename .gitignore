@@ -1,0 +1,5 @@
+work/
+filesystem/
+*.z64
+build.log
+SHA256SUMS.txt
