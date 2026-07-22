@@ -1,5 +1,6 @@
 work/
 filesystem/
 *.z64
+prep.log
 build.log
 SHA256SUMS.txt

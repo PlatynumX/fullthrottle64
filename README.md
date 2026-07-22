@@ -1,43 +1,24 @@
-# FullThrottle64 — ScummVM R2
+# FullThrottle64 — Real ScummVM R3
 
-This revision stops implementing SCUMM ourselves.
+R3 fixes the demo preparation failure in R2 and continues the real ScummVM
+bring-up.
 
-It builds the **real ScummVM SCUMM engine** and attempts to launch the official
-Full Throttle DOS demo directly as `scumm:ft` on Nintendo 64.
+## R2 failure fixed
 
-## Why ScummVM 1.6.0 first?
+The official demo can extract `FT.000`, `FT.001`, and `MONSTER.SOU` directly
+into the destination directory. R2 then attempted to `cp` each file onto itself.
+GNU `cp` returns an error for that operation and `set -e` stopped the Action
+before the ScummVM compiler was ever reached.
 
-ScummVM 1.6.0 is the last release era that still contains the official Nintendo
-64 backend. Full Throttle support is already in its SCUMM engine. We preserve
-the engine and replace the old N64 hardware backend with a libdragon backend.
+R3 compares canonical source/destination paths before copying.
 
-Once the engine is running reliably, newer Full Throttle fixes can be
-backported selectively rather than dragging the entire modern ScummVM platform
-surface into 8 MiB RDRAM at once.
+## Diagnostics
 
-## Real engine path
+R3 always tries to preserve:
 
-Power on
-→ libdragon backend
-→ `scummvm_main`
-→ `scumm:ft`
-→ Scumm engine detection
-→ SCUMM v7 engine
-→ Full Throttle resources
-→ scripts / AKOS / iMUSE / SMUSH / INSANE
+- `prep.log` — demo download, extraction, validation, ScummVM checkout
+- `build.log` — libdragon cross-compile/link
+- the N64 backend overlay and build scripts
 
-The ROM intentionally keeps USB/ISViewer diagnostics enabled. These diagnostics
-are around the real engine and are expected to remain during bring-up.
-
-## Controller
-
-- Analog stick: mouse
-- A: left click
-- B: right click
-- Start: F5 / ScummVM menu
-- L: Escape
-
-## Demo data
-
-GitHub Actions downloads ScummVM's official Full Throttle DOS demo automatically.
-No retail data is committed.
+So the next failure should tell us exactly which real ScummVM compile/link issue
+needs fixing.

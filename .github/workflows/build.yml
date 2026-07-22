@@ -1,4 +1,4 @@
-name: Build FullThrottle64 - Real ScummVM R2
+name: Build FullThrottle64 - Real ScummVM R3
 
 on:
   workflow_dispatch:
@@ -11,25 +11,37 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install host tools
-        run: sudo apt-get update && sudo apt-get install -y git curl unzip python3
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl unzip python3
 
       - name: Fetch real ScummVM and official Full Throttle demo
+        shell: bash
         run: |
+          set -o pipefail
           chmod +x scripts/*.sh
-          ./scripts/build_scummvm.sh
+          ./scripts/build_scummvm.sh 2>&1 | tee prep.log
 
-      - name: Show exact upstream revision
+      - name: Verify prepared sources
         run: |
+          set -eux
+          test -s filesystem/game/FT.000
+          test -s filesystem/game/FT.001
+          test -s filesystem/game/MONSTER.SOU
+          test -d work/scummvm/engines/scumm
           cd work/scummvm
           git rev-parse HEAD
           git describe --tags --always
           grep -n "ENABLE_SCUMM" config.mk
 
-      - name: Build with libdragon
+      - name: Build real ScummVM with libdragon
+        shell: bash
         run: |
+          set -o pipefail
           docker run --rm \
             -v "$PWD:/src" \
             -w /src \
@@ -43,30 +55,35 @@ jobs:
           test -s fullthrottle64-scummvm-r2.z64
           python3 - <<'PY'
           from pathlib import Path
-          p=Path("fullthrottle64-scummvm-r2.z64")
-          b=p.read_bytes()
+          p = Path("fullthrottle64-scummvm-r2.z64")
+          b = p.read_bytes()
           assert b[:4] == bytes.fromhex("80371240"), b[:4].hex()
-          assert len(b) > 1024*1024
-          print("ROM bytes:",len(b))
+          assert len(b) > 1024 * 1024
+          print("ROM bytes:", len(b))
+          print("ROM header:", b[:4].hex())
           PY
           sha256sum fullthrottle64-scummvm-r2.z64 > SHA256SUMS.txt
 
-      - name: Upload build result
+      - name: Upload ROM
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: fullthrottle64-scummvm-r2
+          name: fullthrottle64-scummvm-r3
           path: |
             fullthrottle64-scummvm-r2.z64
             SHA256SUMS.txt
+            prep.log
             build.log
 
-      - name: Upload failed build diagnostics
+      - name: Upload diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: fullthrottle64-scummvm-r2-failed-build
+          name: fullthrottle64-scummvm-r3-failed-build
+          if-no-files-found: ignore
           path: |
+            prep.log
             build.log
             scripts/
             overlay/
+            .github/workflows/build.yml
